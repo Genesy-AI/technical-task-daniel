@@ -17,15 +17,15 @@ export const LeadsList: FC = () => {
     queryFn: async () => api.leads.getMany(),
     retry: false,
   })
-  
+
 
   const deleteLeadsMutation = useMutation({
     mutationFn: async (ids: number[]) => api.leads.deleteMany({ ids }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['leads', 'getMany'] })
       setSelectedLeads([])
-      
-      const message = data.deletedCount === 1 
+
+      const message = data.deletedCount === 1
         ? `Successfully deleted ${data.deletedCount} lead`
         : `Successfully deleted ${data.deletedCount} leads`
       toast.success(message)
@@ -40,6 +40,17 @@ export const LeadsList: FC = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['leads', 'getMany'] })
       setIsEnrichDropdownOpen(false)
+
+      if (data.errors.length > 0) {
+        const failedNames = data.errors.map((error) => error.leadName).join(', ')
+        toast.error(
+          data.verifiedCount > 0
+            ? `Verified ${data.verifiedCount} email${data.verifiedCount === 1 ? '' : 's'}; failed for ${failedNames}`
+            : `Failed to verify: ${failedNames}`
+        )
+        return
+      }
+
       toast.success(
         data.verifiedCount === 1
           ? `Verified ${data.verifiedCount} email`
@@ -104,7 +115,7 @@ export const LeadsList: FC = () => {
                 {selectedLeads.length} selected
               </span>
             )}
-            
+
             <button
               onClick={() => setIsImportModalOpen(true)}
               className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
@@ -114,23 +125,35 @@ export const LeadsList: FC = () => {
               </svg>
               Import CSV
             </button>
-            
+
             <div className="relative">
               <button
-                onClick={() => selectedLeads.length > 0 && setIsEnrichDropdownOpen(!isEnrichDropdownOpen)}
-                disabled={selectedLeads.length === 0}
+                onClick={() => selectedLeads.length > 0 && !verifyEmailsMutation.isPending && setIsEnrichDropdownOpen(!isEnrichDropdownOpen)}
+                disabled={selectedLeads.length === 0 || verifyEmailsMutation.isPending}
                 className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <svg className="-ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Enrich
-                <svg className="ml-2 -mr-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                {verifyEmailsMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <svg className="-ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Enrich
+                    <svg className="ml-2 -mr-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </>
+                )}
               </button>
 
-              {isEnrichDropdownOpen && selectedLeads.length > 0 && (
+              {isEnrichDropdownOpen && selectedLeads.length > 0 && !verifyEmailsMutation.isPending && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
                   <div className="py-1">
                     <button
@@ -148,8 +171,12 @@ export const LeadsList: FC = () => {
                       </div>
                     </button>
                     <button
-                      onClick={() => verifyEmailsMutation.mutate(selectedLeads)}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => {
+                        setIsEnrichDropdownOpen(false)
+                        verifyEmailsMutation.mutate(selectedLeads)
+                      }}
+                      disabled={verifyEmailsMutation.isPending}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <div className="flex items-center">
                         <svg className="mr-3 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -244,11 +271,10 @@ export const LeadsList: FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {!leads.isError && leads.data?.map((lead) => (
-                <tr 
-                  key={lead.id} 
-                  className={`hover:bg-gray-50 transition-colors ${
-                    selectedLeads.includes(lead.id) ? 'bg-blue-50' : ''
-                  }`}
+                <tr
+                  key={lead.id}
+                  className={`hover:bg-gray-50 transition-colors ${selectedLeads.includes(lead.id) ? 'bg-blue-50' : ''
+                    }`}
                 >
                   <td className="w-12 px-6 py-4">
                     <input
@@ -287,7 +313,7 @@ export const LeadsList: FC = () => {
               ))}
             </tbody>
           </table>
-          
+
           {leads.isError && (
             <div className="text-center py-12">
               <div className="bg-red-50 border border-red-200 rounded-lg p-6 mx-6">
@@ -306,7 +332,7 @@ export const LeadsList: FC = () => {
               </div>
             </div>
           )}
-          
+
           {!leads.isError && leads.data?.length === 0 && (
             <div className="text-center py-12">
               <div className="text-gray-500">
