@@ -17,6 +17,19 @@ export const isValidEmail = (email: string): boolean => {
   return emailRegex.test(email)
 }
 
+const regionDisplayNames = new Intl.DisplayNames(['en'], { type: 'region' })
+
+export const isValidCountryCode = (countryCode: string): boolean => {
+  if (!/^[A-Za-z]{2}$/.test(countryCode)) {
+    return false
+  }
+
+  const upper = countryCode.toUpperCase()
+  const regionName = regionDisplayNames.of(upper)
+
+  return Boolean(regionName) && regionName !== upper
+}
+
 export const parseCsv = (content: string): CsvLead[] => {
   if (!content?.trim()) {
     throw new Error('CSV content cannot be empty')
@@ -68,7 +81,7 @@ export const parseCsv = (content: string): CsvLead[] => {
           lead.jobTitle = trimmedValue || undefined
           break
         case 'countrycode':
-          lead.countryCode = trimmedValue || undefined
+          lead.countryCode = trimmedValue ? trimmedValue.toUpperCase() : undefined
           break
         case 'companyname':
           lead.companyName = trimmedValue || undefined
@@ -87,6 +100,9 @@ export const parseCsv = (content: string): CsvLead[] => {
       errors.push('Email is required')
     } else if (!isValidEmail(lead.email)) {
       errors.push('Invalid email format')
+    }
+    if (lead.countryCode && !isValidCountryCode(lead.countryCode)) {
+      errors.push('Invalid country code')
     }
 
     data.push({

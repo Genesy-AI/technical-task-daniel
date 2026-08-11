@@ -167,6 +167,10 @@ app.post('/leads/generate-messages', async (req: Request, res: Response) => {
   }
 })
 
+app.get('/health', async (req: Request, res: Response) => {
+  res.json({ status: 'ok' })
+})
+
 app.post('/leads/bulk', async (req: Request, res: Response) => {
   if (!req.body || typeof req.body !== 'object') {
     return res.status(400).json({ error: 'Request body is required and must be valid JSON' })
