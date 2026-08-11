@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCsv, isValidEmail } from './csvParser'
+import { parseCsv, isValidEmail, isValidCountryCode } from './csvParser'
 
 describe('isValidEmail', () => {
   it('should return true for valid email addresses', () => {
@@ -17,6 +17,24 @@ describe('isValidEmail', () => {
     expect(isValidEmail('test.example.com')).toBe(false)
     expect(isValidEmail('test@.com')).toBe(false)
     expect(isValidEmail('test@example')).toBe(false)
+  })
+})
+
+describe('isValidCountryCode', () => {
+  it('should return true for valid ISO alpha-2 country codes', () => {
+    expect(isValidCountryCode('US')).toBe(true)
+    expect(isValidCountryCode('ES')).toBe(true)
+    expect(isValidCountryCode('TV')).toBe(true)
+    expect(isValidCountryCode('us')).toBe(true)
+  })
+
+  it('should return false for invalid country codes', () => {
+    expect(isValidCountryCode('')).toBe(false)
+    expect(isValidCountryCode('XXX')).toBe(false)
+    expect(isValidCountryCode('12')).toBe(false)
+    expect(isValidCountryCode('A')).toBe(false)
+    expect(isValidCountryCode('USA')).toBe(false)
+    expect(isValidCountryCode('XX')).toBe(false)
   })
 })
 
@@ -152,6 +170,64 @@ John,Doe,john@example.com,,`
     expect(result[0].jobTitle).toBeUndefined()
     expect(result[0].countryCode).toBeUndefined()
     expect(result[0].isValid).toBe(true)
+  })
+
+  it('should accept valid country codes including obscure ISO codes', () => {
+    const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,US
+Jane,Smith,jane@example.com,TV
+Bob,Jones,bob@example.com,KP`
+
+    const result = parseCsv(csv)
+
+    expect(result).toHaveLength(3)
+    expect(result.every((lead) => lead.isValid)).toBe(true)
+    expect(result.map((lead) => lead.countryCode)).toEqual(['US', 'TV', 'KP'])
+  })
+
+  it('should uppercase country codes', () => {
+    const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,us`
+
+    const result = parseCsv(csv)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].countryCode).toBe('US')
+    expect(result[0].isValid).toBe(true)
+  })
+
+  it('should mark leads with invalid country codes as invalid', () => {
+    const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,XXX
+Jane,Smith,jane@example.com,12
+Bob,Jones,bob@example.com,US`
+
+    const result = parseCsv(csv)
+
+    expect(result).toHaveLength(3)
+
+    expect(result[0].isValid).toBe(false)
+    expect(result[0].countryCode).toBe('XXX')
+    expect(result[0].errors).toContain('Invalid country code')
+
+    expect(result[1].isValid).toBe(false)
+    expect(result[1].countryCode).toBe('12')
+    expect(result[1].errors).toContain('Invalid country code')
+
+    expect(result[2].isValid).toBe(true)
+    expect(result[2].countryCode).toBe('US')
+  })
+
+  it('should allow empty country code', () => {
+    const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,`
+
+    const result = parseCsv(csv)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].countryCode).toBeUndefined()
+    expect(result[0].isValid).toBe(true)
+    expect(result[0].errors).not.toContain('Invalid country code')
   })
 
   it('should preserve row index correctly', () => {
